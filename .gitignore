@@ -1,3 +1,11 @@
 
 development/.DS_Store
 development/archived_scripts/avalanche_distribution_analysis_script.m
+development/archived_scripts/avalanche_distribution_timeConst_analysis_script.m
+development/archived_scripts/avalanche_GOF_plotting_cut_text.m
+development/archived_scripts/avalanche_power_laws_GOF_script.m
+development/archived_scripts/latent_field_info_calc_script_v2021.m
+development/exact_info_asymptotics_script.m
+development/multi_latent_field_info_calc_script.m
+development/scaling_checks_script.m
+development/temporal_coarse_graining_avalanches_script.m

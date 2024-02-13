@@ -1,0 +1,24 @@
+function cdf_Paxm = computeCDFpowerlawdistribution(x_vals, a_hat, x_min)
+% computes the complementary CDF of a discrete power law distribution using
+% the generalized zeta function (Hurwitz zeta)
+%     cdf_Paxm = hurwitzZeta(a_hat, x_vals)/hurwitzZeta(a_hat, x_min);
+
+    [glu_hurwitzZeta, ~] = loadhurwitzZetaLookup();
+
+%     global glu_hurwitzZeta
+    cdf_Paxm = glu_hurwitzZeta(a_hat, x_vals)/glu_hurwitzZeta(a_hat, x_min);
+
+    if any(x_vals > 1e4)
+        % evaluate at 1e3, well within interpolation bounds
+        % this finds constants for log(ccdf) = a0 - (a_hat-1)*log(x)
+        c0 = glu_hurwitzZeta(a_hat, 1e3)/glu_hurwitzZeta(a_hat, x_min);
+        x0 = log(1e3);
+        a0 = (a_hat - 1)*x0 + c0;
+
+        logxH = log(x_vals(x_vals > 1e4));
+
+        cdf_Paxm(x_vals > 1e4) = exp(a0 - (a_hat - 1)*logxH);
+        warning('Note: Hurwitz Zeta power-law extrapolated outside of bounds (x > 1e4).')
+
+    end
+end

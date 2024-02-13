@@ -1,0 +1,286 @@
+function gamma_fit_summary = plotTauAlphaGammaSummary(x_reps_arr, x_reps_labels, h_Fig, h_spG1, gamma_fit_summary)
+%   x_reps_arr is a cell array, each element is a struct array that must
+%   have fields 'all_alpha_pfit', 'all_tau_pfit'
+% if re-running on existing 'gamma_fit_summary', the first block is skipped
+% if you don't want to plot results, only pass the first argument
+% (x_reps_arr)
+
+%% check: is first input the x_reps_arr, or gamma_fit_summary? 
+if nargin < 5
+    if nargin == 1
+        plot_diagnostics = false;
+    else 
+        plot_diagnostics = true;
+    end
+
+
+    %% otherwise, first calculate all fit information for gamma
+    gamma_fit_summary = cell(1, length(x_reps_arr));
+
+    for i_xra = 1:length(x_reps_arr)
+        % extract the fitted tau and alpha from simulations
+
+        tau_fit = x_reps_arr{i_xra}.all_tau_pfit;
+        alpha_fit = x_reps_arr{i_xra}.all_alpha_pfit;
+
+        % extract fitted gamma
+        g_fit = x_reps_arr{i_xra}.all_gamma_pfit;
+        gamma_vals = zeros(size(g_fit));
+        gamma_val_se = zeros(size(g_fit));
+        gamma_range_L0 = zeros(size(g_fit));
+        gamma_range_H0 = zeros(size(g_fit));
+
+        mean_gamma_fit = gamma_vals;
+        gamma_CI_low = gamma_vals;
+        gamma_CI_high = gamma_vals;
+        gamma_range_L = gamma_vals;
+        gamma_range_H = gamma_vals;
+
+        % and results from forcing fit to start at low value (minS = 0.5)
+        mean_gamma_fit_minS = gamma_vals;
+        gamma_CI_low_minS = gamma_vals;
+        gamma_CI_high_minS = gamma_vals;
+        gamma_range_L_minS = gamma_vals;
+        gamma_range_H_minS = gamma_vals;
+
+        % and results from forcing fit to start at minimum duration cutoff
+        mean_gamma_fit_Dmin = gamma_vals;
+        gamma_CI_low_Dmin = gamma_vals;
+        gamma_CI_high_minS = gamma_vals;
+        gamma_range_L_minS = gamma_vals;
+        gamma_range_H_minS = gamma_vals;
+
+        for ii = 1:size(g_fit, 1)
+            for jj = 1:size(g_fit, 2)
+                [gamma_fit_mean, gamma_fit_se, gamma_range] = extractGammaFitRegion(g_fit{ii, jj});
+
+                gamma_vals(ii, jj) = gamma_fit_mean;
+                gamma_val_se(ii, jj) = gamma_fit_se;
+                gamma_range_L0(ii, jj) = gamma_range(1);
+                gamma_range_H0(ii, jj) = gamma_range(2);
+
+                %% from the new fit
+
+                ava_name_fn = x_reps_arr{i_xra}.ava_name_fn;
+
+                %%
+                try
+                    x_ava = load(ava_name_fn(ii, jj));
+                    %     x_fr = load(fr_name_fn(ii_y, ii_x));
+
+                    %                 [n_cts, size_bins, dur_bins] = calculateJointHistogram(x_ava.sizes, x_ava.durations);
+                    [ave_sizes, ~, dur_bins, ~] = calculateAveSizeByDuration(x_ava.sizes, x_ava.durations);
+
+                    % require at least one avalanche of size 500
+                    if max(x_ava.sizes) < 5e2
+                        ave_sizes = [];
+                    end
+
+                    %% adaptive fit for gamma:
+
+                    plot_name = [x_reps_arr{i_xra}.param_str(ii, jj) '.pdf'];
+                    [gamma_fit, gamma_range, minS_gamma_fit, minS_gamma_range] = fitGammaRange(dur_bins, ave_sizes, ...
+                        plot_diagnostics, plot_name);
+
+                    gamma_range_L(ii, jj) = gamma_range(1);
+                    gamma_range_H(ii, jj) = gamma_range(2);
+
+                    mean_gamma_fit(ii, jj) = gamma_fit.p1;
+                    ci_gamma = confint(gamma_fit);
+                    gamma_CI_low(ii, jj) = ci_gamma(1,1);
+                    gamma_CI_high(ii, jj) = ci_gamma(2, 1);
+
+                    % results from forcing the fit to start at minS (0.5)
+                    gamma_range_L_minS(ii, jj) = minS_gamma_range(1);
+                    gamma_range_H_minS(ii, jj) = minS_gamma_range(2);
+
+                    mean_gamma_fit_minS(ii, jj) = gamma_fit.p1;
+                    ci_gamma = confint(minS_gamma_fit);
+                    gamma_CI_low_minS(ii, jj) = ci_gamma(1, 1);
+                    gamma_CI_high_minS(ii, jj) = ci_gamma(2, 1);
+
+                    % Run again, forcing start at d_min, obtained from
+                    % alpha fit (duration power law)
+                    d_min = alpha_fit{ii,jj}.x_min;
+                    [gamma_fit_Dmin, gamma_range_Dmin] = fitGammaRange_fromDmin(dur_bins, ave_sizes, ...
+                        d_min);
+
+
+                catch
+                    
+                    disp(['Missing file or failed: ' ava_name_fn(ii, jj)])
+                end
+            end
+
+        end
+
+
+        gamma_fit_summary{i_xra}.fit_gamma = mean_gamma_fit;
+        gamma_fit_summary{i_xra}.fit_gamma_CI_L = gamma_CI_low;
+        gamma_fit_summary{i_xra}.fit_gamma_CI_H = gamma_CI_high;
+        gamma_fit_summary{i_xra}.fit_gamma_se = (gamma_CI_high - gamma_CI_low)/3.9;  % 95%-CI range is -2sigma to +2 sigma
+        gamma_fit_summary{i_xra}.fit_gamma_range = gamma_range_H - gamma_range_L;
+        gamma_fit_summary{i_xra}.fit_gamma_range_start = gamma_range_L;
+
+        % old analysis
+        gamma_fit_summary{i_xra}.fit0_gamma = gamma_vals;
+        gamma_fit_summary{i_xra}.fit0_gamma_se = gamma_val_se;
+        gamma_fit_summary{i_xra}.fit0_gamma_range = gamma_range_H0 - gamma_range_L0;
+        gamma_fit_summary{i_xra}.fit0_gamma_range_start = gamma_range_L0;
+
+        % force start at minS = 0.5
+        gamma_fit_summary{i_xra}.fit_gamma_minS = mean_gamma_fit_minS;
+        gamma_fit_summary{i_xra}.fit_gamma_CI_L_minS = gamma_CI_low_minS;
+        gamma_fit_summary{i_xra}.fit_gamma_CI_H_minS = gamma_CI_high_minS;
+        gamma_fit_summary{i_xra}.fit_gamma_se_minS = (gamma_CI_high_minS - gamma_CI_low_minS)/3.9;  % 95%-CI range is -2sigma to +2 sigma
+        gamma_fit_summary{i_xra}.fit_gamma_range_minS = gamma_range_H_minS - gamma_range_L_minS;
+        gamma_fit_summary{i_xra}.fit_gamma_range_start_minS = gamma_range_L_minS;
+
+
+        % use cellfun to get alpha, tau info; check for empty rows/cols first
+        %     gamma_fit_summary{i_xra}.fit_tau = cellfun(@(x) x.a_hat, tau_fit);
+        %     gamma_fit_summary{i_xra}.fit_tau_se = cellfun(@(x) x.se_a_hat, tau_fit);
+        %     gamma_fit_summary{i_xra}.fit_alpha = cellfun(@(x) x.a_hat, alpha_fit);
+        %     gamma_fit_summary{i_xra}.fit_alpha_se = cellfun(@(x) x.se_a_hat, alpha_fit);
+        gamma_fit_summary{i_xra}.fit_tau = nancellfun(tau_fit, 'a_hat');
+        gamma_fit_summary{i_xra}.fit_tau_se = nancellfun(tau_fit, 'se_a_hat');
+        gamma_fit_summary{i_xra}.fit_alpha = nancellfun(alpha_fit, 'a_hat');
+        gamma_fit_summary{i_xra}.fit_alpha_se = nancellfun(alpha_fit, 'se_a_hat');
+
+        % extract the predicted gamma from simulations: the value in
+        % all_gamma_pred.g_hat is based on the tau and alpha values obtained
+        % with the specified size and duration cutoffs
+        %     g_pred = cellfun(@(x) x.g_hat, x_reps_arr{i_xra}.all_gamma_pred);
+        g_pred = nancellfun(x_reps_arr{i_xra}.all_gamma_pred, 'g_hat');
+        isnotnan = ~isnan(g_pred);
+
+        gamma_fit_summary{i_xra}.gamma_prediction = g_pred;
+        gamma_fit_summary{i_xra}.gamma_pred_se = nan(size(g_pred));
+        gamma_fit_summary{i_xra}.gamma_pred_se(isnotnan) = cellfun(@(x) ...
+            x.mSE(x.mhat == x.g_hat), x_reps_arr{i_xra}.all_gamma_pred(isnotnan));
+
+        % calculate prediction error
+        gamma_fit_summary{i_xra}.gamma_f_minus_p = mean_gamma_fit - g_pred;
+        gamma_fit_summary{i_xra}.gamma_f_minus_p_se = sqrt(...
+            (gamma_fit_summary{i_xra}.fit_gamma_se).^2 + ...
+            (gamma_fit_summary{i_xra}.gamma_pred_se).^2);
+    end
+    %
+end
+
+%% now generate plots
+
+if nargin > 1
+    
+    figure(h_Fig);
+
+    % subplot 1: tau value vs. time scale
+    min_n_dec = 2;
+    xtick_vals = [0.1 0.3 1 3 10];
+    tauF_factor = 10000;    % tau_F = 1 means 10000 timesteps (in units that duration is measured in)
+
+    plotErrorbarWithCriterion(h_spG1(1), x_reps_arr, gamma_fit_summary, 'fit_tau', min_n_dec)
+
+    xlabel('dynamical timescale \tau_F')
+    ylabel('\tau fit')
+    axis square
+    set(gca, 'xtick', log10(xtick_vals), 'XTickLabel', num2str(tauF_factor*xtick_vals'), ...
+        'color', 'none')
+
+    % subplot 2: alpha value vs. time scale
+    plotErrorbarWithCriterion(h_spG1(2), x_reps_arr, gamma_fit_summary, 'fit_alpha', min_n_dec)
+    xlabel('dynamical timescale \tau_F')
+    ylabel('\alpha fit')
+    axis square
+    set(gca, 'xtick', log10(xtick_vals), 'XTickLabel', num2str(tauF_factor*xtick_vals'), ...
+        'color', 'none')
+
+    % subplot 3: gamma value vs. time scale
+    plotErrorbarWithCriterion(h_spG1(3), x_reps_arr, gamma_fit_summary, 'fit_gamma', min_n_dec)
+    xlabel('dynamical timescale \tau_F')
+    ylabel('\gamma fit')
+    axis square
+    set(gca, 'xtick', log10(xtick_vals), 'XTickLabel', num2str(tauF_factor*xtick_vals'), ...
+        'color', 'none')
+    %%
+    % subplot 4: fit range vs. time scale
+    set(h_Fig, 'currentaxes', h_spG1(4));
+    cla;
+    cmap_xra = lines(length(x_reps_arr));
+    leg_h = cell(length(x_reps_arr), 1);
+    hold on
+    for i_xra = 1:length(x_reps_arr)
+        y_vals = gamma_fit_summary{i_xra}.fit_gamma_range;
+        tau_vals = x_reps_arr{i_xra}.x_var_list;
+
+        leg_h{i_xra} = plot(log10(tau_vals), mean(y_vals, 1), ...
+            '.', 'color', (1 + cmap_xra(i_xra, :))/2);
+        plot(log10(tau_vals), y_vals, 'o', 'color', cmap_xra(i_xra, :), 'LineWidth',1.5)
+    end
+    set(gca, 'xtick', log10(xtick_vals), 'XTickLabel', num2str(tauF_factor*xtick_vals'), ...
+        'color', 'none')
+    xlabel('dynamical timescale \tau_F')
+    ylabel('decades of scaling')
+    axis square
+    lh = legend([leg_h{1}(1) leg_h{2}(1)], x_reps_labels, 'Location','eastoutside');
+    lh.Position(1) = lh.Position(1) + 0.01;
+%%
+    % subplot 5: gamma minus gamma predicted vs. time scale
+    set(h_Fig, 'currentaxes', h_spG1(5));
+    plotErrorbarWithCriterion(h_spG1(5), x_reps_arr, gamma_fit_summary, 'gamma_f_minus_p', min_n_dec)
+    % cla;
+    hold on
+%     for i_xra = 1:length(x_reps_arr)
+%         y_vals = gamma_fit_summary{i_xra}.fit_gamma - gamma_fit_summary{i_xra}.gamma_prediction;
+%         dy_vals = sqrt( gamma_fit_summary{i_xra}.gamma_pred_se.^2 + ...
+%             gamma_fit_summary{i_xra}.fit_gamma_se.^2 );
+%         tau_vals = x_reps_arr{i_xra}.x_var_list;
+% 
+%         errorbar(repmat(log10(tau_vals), size(y_vals, 1), 1), y_vals, dy_vals, ...
+%             'o', 'color', cmap_xra(i_xra, :));
+%     end
+    plot(log10(tau_vals), 0*tau_vals, 'k--')
+    set(gca, 'xtick', log10(xtick_vals), 'XTickLabel', num2str(tauF_factor*xtick_vals'), ...
+        'color', 'none')
+
+    xlabel('dynamical timescale \tau_F')
+    ylabel('\gamma_{fit} - \gamma_{pred}')
+    axis square
+end
+end
+
+% helpful function
+
+
+function h = plotErrorbarWithCriterion(h, reps_arr, sum_arr, field_name, min_sc_val)
+    set(gcf, 'CurrentAxes', h)
+    cla;
+    cmap_xra = lines(length(sum_arr));
+    % leg_h = cell(size(x_reps_arr));
+    hold on
+    %%
+    for i_xra = 1:length(sum_arr)
+        % scaling criterion (sc_cr) is based on how many decades of scaling in
+        % gamma: require a minimum of min_sc_val (typically 2 )decades 
+        % scaling of size with duration
+        % 
+        sc_cr = sum_arr{i_xra}.fit_gamma_range >= min_sc_val;
+        y_vals = sum_arr{i_xra}.(field_name)(sc_cr);
+        tau_vals = repmat(reps_arr{i_xra}.x_var_list, size(sc_cr, 1), 1);
+        x_vals = tau_vals(sc_cr);
+
+        try
+            dy_vals = sum_arr{i_xra}.([field_name '_se'])(sc_cr);
+    
+            errorbar(log10(x_vals), y_vals, ...
+                dy_vals, 'o', 'color', cmap_xra(i_xra, :))
+        catch
+            dy_L = y_vals - sum_arr{i_xra}.([field_name '_CI_L'])(sc_cr);
+            dy_H = sum_arr{i_xra}.([field_name '_CI_H'])(sc_cr) - y_vals;
+            errorbar(log10(x_vals), y_vals, dy_L, dy_H, 'o', 'color', cmap_xra(i_xra, :))
+
+        end
+    end
+   
+
+end

@@ -1,0 +1,61 @@
+function plotTauAlphaGammaSummary(x_reps_arr, x_reps_labels, h_Fig, h_spG1)
+%   x_reps_arr is a cell array, each element is a struct array that must
+%   have fields 'all_alpha_pfit', 'all_tau_pfit'
+
+%% first calculate all fit information for gamma 
+gamma_fit_summary = cell(1, length(x_reps_arr));
+
+for i_xra = 1:length(x_reps_arr)
+    g_fit = x_reps_arr{i_xra}.all_gamma_pfit;
+%     g_pred = x_reps_arr{i_xra}.all_gamma_pred;
+    
+    gamma_vals = zeros(size(g_fit));
+    gamma_val_se = zeros(size(g_fit));
+    gamma_range_L = zeros(size(g_fit));
+    gamma_range_H = zeros(size(g_fit));
+    for ii = 1:size(g_fit, 1)
+        for jj = 1:size(g_fit, 2)
+            [gamma_fit_mean, gamma_fit_se, gamma_range] = extractGammaFitRegion(g_fit{ii, jj});
+
+            gamma_vals(ii, jj) = gamma_fit_mean;
+            gamma_val_se(ii, jj) = gamma_fit_se;
+            gamma_range_L(ii, jj) = gamma_range(1);
+            gamma_range_H(ii, jj) = gamma_range(2);
+        end
+
+    end
+    gamma_fit_summary{i_xra}.fit_gamma = gamma_vals;
+    gamma_fit_summary{i_xra}.fit_gamma_se = gamma_val_se;
+    gamma_fit_summary{i_xra}.fit_gamma_range = gamma_range_H - gamma_range_L;
+    gamma_fit_summary{i_xra}.fit_gamma_range_start = gamma_range_L;
+    
+    
+end
+keyboard
+%% now generate plots 
+% subplot 1: gamma value vs. time scale
+set(h_Fig, 'currentaxes', h_spG1(1));
+cla;
+cmap_xra = lines(length(x_reps_arr));
+hold on
+for i_xra = 1:length(x_reps_arr)
+    y_vals = gamma_fit_summary{i_xra}.fit_gamma;
+    dy_vals = gamma_fit_summary{i_xra}.fit_gamma_se;
+    tau_vals = repmat(x_reps_arr{i_xra}.x_var_list, size(y_vals, 1), 1);
+
+    errorbar(log10(tau_vals), y_vals, ...
+        dy_vals, 'o', 'color', cmap_xra(i_xra, :))
+end
+
+% subplot 2: fit range vs. time scale
+set(h_Fig, 'currentaxes', h_spG1(3));
+cla;
+cmap_xra = lines(length(x_reps_arr));
+hold on
+for i_xra = 1:length(x_reps_arr)
+    y_vals = gamma_fit_summary{i_xra}.fit_gamma_range;
+    tau_vals = repmat(x_reps_arr{i_xra}.x_var_list, size(y_vals, 1), 1);
+
+    plot(log10(tau_vals), y_vals, ...
+         'o', 'color', cmap_xra(i_xra, :))
+end

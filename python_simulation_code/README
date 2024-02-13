@@ -1,0 +1,31 @@
+README
+--------------------------------------------------------------------
+Code adapted from Morrell, Sederberg, Nemenman 2021 PRL
+Avalanche analysis and neural simulation using latent fields
+--------------------------------------------------------------------
+Jupyter notebooks:
+--------------------------------------------------------------------
+1) timesweep.ipynb: This notebook runs analysis on simulations which vary time constants but hold all other parameters (eta, epsilon, phi) constant. Uses hamiltonian H = eta x ( field + epsilon)
+
+2) integration_check.ipynb: Checking integration of T+D paper
+
+3) etavsepsilon_fits.ipynb: This notebook analyzes data from sweeps varying eta and epsilon holding fields and couplings constant over simulations. Note that these simulations use H = eta x field + epsilon instead of 
+H = eta x ( field + epsilon)
+
+------------------------------------------------------------------------------
+Simulation code:
+1) Runfiles: run sweeps of simulations
+	a. coarse_md2d.py: USED FOR etavsepsilon_fits.ipynb. run sweep over eta and epsilon, holding fields and couplings constant.
+	b. avalanche_test_sweep_stationary_times.py: run sweep over time constants. used for timesweep.ipynb
+2) Simulation package:
+        a. funcs.py: contains functions to fill fields and couplings arrays, plotting functions.
+        b. objects.py: contains objects which run the simulations
+        c. runfunc.py: contains functions which call on objects.py to run sims and set parameters of sims.
+Note that there are other files in the avalanche package, these were used for coarse-graining analysis but are not used in the current code implementation.
+
+------------------------------------------------------------------------------------
+Simulation naming conventions: see runfiles for more info. example:
+envfixedfieldJ_md2dsweep_etaepssweep_coarse_av_stim1e-2.5et0.1ph1.0p1.0tstat*
+implies simulation with fixed fields and couplings which is part of sweeps over eta and epsilon. 'stim1' implies 1 latent field, 'e-2.5' means epsilon=-2.5,
+'et0.1' means eta = 0.1, 'ph1.0' means phi = 1.0, 'p1.0' means cells couple to every field, 'tstat' means the latent field time constant is stationary.
+* implies that there are 6 files for each simulation, 5 .npz files and 1 .h5 file.
